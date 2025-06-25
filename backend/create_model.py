@@ -371,29 +371,14 @@ class RuleBasedStalenessDetector:
             # Check if audit_user is a sys_id that can be resolved to the assigned_owner username
             elif audit_user in user_by_sys_id:
                 resolved_user = user_by_sys_id[audit_user]
-                if resolved_user.get('user_name') == assigned_owner:
+                resolved_username = resolved_user.get('user_name', '')
+                # Check for exact match or username variations
+                if resolved_username == assigned_owner or self._are_same_user_variations(assigned_owner, resolved_username):
                     owner_activities.append(record)
         
         features['owner_activity_count'] = len(owner_activities)
         
-        # Debug logging for owner activity mismatch
-        if len(ci_audit_records) > 0:
-            print(f"DEBUG: CI {ci_data.get('ci_id', 'unknown')} - assigned_owner: '{assigned_owner}', owner_sys_id: '{owner_sys_id}'")
-            print(f"DEBUG: Total CI audit records: {len(ci_audit_records)}")
-            print(f"DEBUG: Owner activities found: {len(owner_activities)}")
-            if len(ci_audit_records) > 0:
-                unique_users = set(r.get('user', '') for r in ci_audit_records)
-                print(f"DEBUG: Unique users in audit records: {list(unique_users)[:10]}")
-                # Check if any audit users can be resolved to the assigned owner
-                for user in unique_users:
-                    if user == assigned_owner:
-                        print(f"DEBUG: Direct username match - assigned_owner: '{assigned_owner}', audit_user: '{user}'")
-                    elif user == owner_sys_id:
-                        print(f"DEBUG: Sys_id match - owner_sys_id: '{owner_sys_id}', audit_user: '{user}'")
-                    elif user in user_by_sys_id and user_by_sys_id[user].get('user_name') == assigned_owner:
-                        print(f"DEBUG: Resolved sys_id match - assigned_owner: '{assigned_owner}', audit_user: '{user}' -> '{user_by_sys_id[user].get('user_name')}'")
-            if len(owner_activities) == 0 and len(ci_audit_records) > 0:
-                print(f"DEBUG: WARNING - No owner activities found but CI has {len(ci_audit_records)} audit records!")
+
         
         if len(ci_audit_records) > 0:
             features['owner_activity_ratio'] = len(owner_activities) / len(ci_audit_records)
@@ -534,12 +519,7 @@ class RuleBasedStalenessDetector:
                         if user_for_sys_id == assigned_owner:
                             owner_profile_changes.append(change_info)
         
-        # Debug logging for profile changes
-        if len(title_changes) > 0 or len(department_changes) > 0:
-            print(f"DEBUG: Found profile changes for CI - Title: {len(title_changes)}, Dept: {len(department_changes)}, Owner: {len(owner_profile_changes)}")
-            if owner_sys_id:
-                print(f"DEBUG: Owner sys_id: {owner_sys_id}, Owner username: {assigned_owner}")
-            print(f"DEBUG: CI-related user sys_ids: {list(ci_related_user_sys_ids)[:5]}...")  # Show first 5
+
         
         # Enhanced features for title and department changes
         features['title_changes_count'] = len(title_changes)
@@ -656,11 +636,24 @@ class RuleBasedStalenessDetector:
             if not audit_records:
                 return None
 
+            # Get current owner's sys_id for better matching
+            current_owner_sys_id = ''
+            user_info = ci_data.get('user_info', {})
+            if user_info:
+                current_owner_sys_id = user_info.get('sys_id', '')
+            
+            # Also try to get from CI info if not in user_info
+            if not current_owner_sys_id:
+                ci_info = ci_data.get('ci_info', {})
+                assigned_to_field = ci_info.get('assigned_to', {})
+                if isinstance(assigned_to_field, dict):
+                    current_owner_sys_id = assigned_to_field.get('value', '')
+            
             # Analyze user activities
             user_activities = {}
             for record in audit_records:
                 user = record.get('user', '')
-                if user and user != assigned_owner:
+                if user and self._is_different_user(user, assigned_owner, current_owner_sys_id, user_data_context):
                     if user not in user_activities:
                         user_activities[user] = {
                             'count': 0,
@@ -762,6 +755,70 @@ class RuleBasedStalenessDetector:
 
         except Exception as e:
             return None
+
+    def _is_different_user(self, audit_user, assigned_owner, current_owner_sys_id, user_data_context):
+        """
+        Check if audit_user is different from the current owner.
+        Handles cases where audit_user might be a sys_id and assigned_owner is a username.
+        """
+        # Direct username match - same user
+        if audit_user == assigned_owner:
+            return False
+        
+        # Direct sys_id match - same user
+        if audit_user == current_owner_sys_id:
+            return False
+        
+        # Check if audit_user (sys_id) resolves to the assigned_owner (username)
+        # user_data_context contains user data by username, but we need sys_id lookup
+        # We'll need to iterate through user_data_context to find matching sys_ids
+        for username, user_data in user_data_context.items():
+            if isinstance(user_data, dict):
+                user_sys_id = user_data.get('sys_id', '')
+                user_name = user_data.get('user_name', username)
+                
+                # If audit_user is this user's sys_id and this user is the assigned_owner
+                if audit_user == user_sys_id and user_name == assigned_owner:
+                    return False
+                
+                # If assigned_owner matches this user and audit_user is their sys_id
+                if assigned_owner == user_name and audit_user == user_sys_id:
+                    return False
+                
+                # Handle username variations (e.g., mike.foster.xyz vs mike.foster)
+                # Check if one username is a variation of the other
+                if audit_user == user_sys_id and self._are_same_user_variations(assigned_owner, user_name):
+                    return False
+        
+        # Different users
+        return True
+
+    def _are_same_user_variations(self, username1, username2):
+        """
+        Check if two usernames are variations of the same user.
+        Examples: mike.foster.xyz vs mike.foster, person.f.contractor vs person.f
+        """
+        if not username1 or not username2:
+            return False
+        
+        # Direct match
+        if username1 == username2:
+            return True
+        
+        # Remove common suffixes and check
+        suffixes = ['.xyz', '.contractor', '.temp', '.ext', '.admin', '.generic']
+        
+        def normalize_username(username):
+            normalized = username.lower()
+            for suffix in suffixes:
+                if normalized.endswith(suffix):
+                    normalized = normalized[:-len(suffix)]
+            return normalized
+        
+        normalized1 = normalize_username(username1)
+        normalized2 = normalize_username(username2)
+        
+        return normalized1 == normalized2
 
     def get_stale_ci_list(self, labels_df, audit_df, user_df, ci_df, ci_owner_display_names=None):
         """
