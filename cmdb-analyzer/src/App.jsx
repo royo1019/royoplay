@@ -1620,12 +1620,7 @@ const ServiceNowScanner = () => {
                                                                 <span className="text-green-300 font-medium text-xs">
                                                                   {rec.display_name || rec.username}
                                                                 </span>
-                                                                {rec.department && (
-                                                                  <div className="text-xs text-blue-300 mt-1">
-                                                                    <span className="text-gray-400">Dept: </span>
-                                                                    {rec.department}
-                                                                  </div>
-                                                                )}
+                                                                
                                                               </div>
                                                               <span className="text-green-400 font-semibold text-xs">
                                                                 {rec.score || Math.round((rec.confidence || 0) * 100)}/100
@@ -1639,7 +1634,7 @@ const ServiceNowScanner = () => {
                                                               <div>
                                                                 <span className="text-gray-400">Last Seen: </span>
                                                                 <span className="text-green-300">
-                                                                  {(rec.last_activity_days_ago || rec.days_since_activity) === 999 ? 'Never' : `${rec.last_activity_days_ago || rec.days_since_activity || 0}d ago`}
+                                                                  {(rec.last_activity_days_ago || rec.days_since_activity) >= 999 ? '999+ days' : `${rec.last_activity_days_ago || rec.days_since_activity || 0}d ago`}
                                                                 </span>
                                                               </div>
                                                             </div>
@@ -1899,7 +1894,7 @@ const ServiceNowScanner = () => {
                                             <div>
                                               <span className="text-gray-400">Last Activity: </span>
                                               <span className="text-white">
-                                                {ci.days_since_owner_activity === 999 ? 'Never' : `${ci.days_since_owner_activity || 0} days ago`}
+                                                {ci.days_since_owner_activity >= 999 ? '999+ days' : `${ci.days_since_owner_activity || 0} days ago`}
                                               </span>
                                             </div>
                                             <div>
@@ -1929,12 +1924,7 @@ const ServiceNowScanner = () => {
                                                 <div>
                                                   <div className="text-green-300 font-medium">{ci.recommended_owners[0].display_name || ci.recommended_owners[0].username}</div>
                                                   <div className="text-xs text-gray-400">{ci.recommended_owners[0].username}</div>
-                                                  {ci.recommended_owners[0].department && (
-                                                    <div className="text-xs text-blue-300 mt-1">
-                                                      <span className="text-gray-400">Dept: </span>
-                                                      {ci.recommended_owners[0].department}
-                                                    </div>
-                                                  )}
+
                                                 </div>
                                                 <div className="text-right">
                                                   <div className="text-green-400 font-bold">{ci.recommended_owners[0].score}/100</div>
@@ -1949,7 +1939,7 @@ const ServiceNowScanner = () => {
                                                 </div>
                                                 <div>
                                                   <span className="text-gray-400">Last Seen: </span>
-                                                  {ci.recommended_owners[0].last_activity_days_ago === 999 ? 'Never' : `${ci.recommended_owners[0].last_activity_days_ago}d ago`}
+                                                  {ci.recommended_owners[0].last_activity_days_ago >= 999 ? '999+ days' : `${ci.recommended_owners[0].last_activity_days_ago}d ago`}
                                                 </div>
                                                 <div>
                                                   <span className="text-gray-400">Ownership Changes: </span>
@@ -2046,12 +2036,7 @@ const ServiceNowScanner = () => {
                                                       <div>
                                                         <div className="text-blue-300 font-medium">{owner.display_name || owner.username}</div>
                                                         <div className="text-xs text-gray-400">{owner.username}</div>
-                                                        {owner.department && (
-                                                          <div className="text-xs text-blue-300 mt-1">
-                                                            <span className="text-gray-400">Dept: </span>
-                                                            {owner.department}
-                                                          </div>
-                                                        )}
+
                                                       </div>
                                                       <div className="text-right">
                                                         <div className="text-blue-400 font-bold">{owner.score}/100</div>
@@ -2066,7 +2051,7 @@ const ServiceNowScanner = () => {
                                                       </div>
                                                       <div>
                                                         <span className="text-gray-400">Last Seen: </span>
-                                                        {owner.last_activity_days_ago === 999 ? 'Never' : `${owner.last_activity_days_ago}d ago`}
+                                                        {owner.last_activity_days_ago >= 999 ? '999+ days' : `${owner.last_activity_days_ago}d ago`}
                                                       </div>
                                                       <div>
                                                         <span className="text-gray-400">Ownership Changes: </span>
@@ -2128,8 +2113,8 @@ const ServiceNowScanner = () => {
                                                         {ci.owner_activity_count || 0}
                                                       </div>
                                                       <div>
-                                                        <span className="text-gray-400">Last Seen: </span>
-                                                        {ci.days_since_owner_activity === 999 ? 'Never' : `${ci.days_since_owner_activity || 0}d ago`}
+                                                                                                              <span className="text-gray-400">Last Seen: </span>
+                                                      {ci.days_since_owner_activity >= 999 ? '999+ days' : `${ci.days_since_owner_activity || 0}d ago`}
                                                       </div>
                                                       <div>
                                                         <span className="text-gray-400">Status: </span>
