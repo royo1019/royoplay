@@ -320,6 +320,34 @@ const ServiceNowScanner = () => {
   const [undoingAssignment, setUndoingAssignment] = useState(null);
   const [showScrollButtons, setShowScrollButtons] = useState(false);
   
+  // Progress effect
+  useEffect(() => {
+    let timer;
+    if (isScanning) {
+      setScanProgress(0);
+      timer = setInterval(() => {
+        setScanProgress((oldProgress) => {
+          if (oldProgress >= 95) {
+            clearInterval(timer);
+            return 95;
+          }
+          return oldProgress + 1;
+        });
+      }, 150);
+    } else {
+      setScanProgress(0);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isScanning]);
+
+  useEffect(() => {
+    if (scanResults) {
+      setScanProgress(100);
+    }
+  }, [scanResults]);
 
   // Scroll functionality
   useEffect(() => {
@@ -1351,16 +1379,17 @@ const ServiceNowScanner = () => {
                 </div>
 
                 {isScanning && (
-                  <div className="mb-6">
-                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                  <div className="mt-4">
+                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full transition-all duration-300"
-                        style={{ width: `${scanProgress}%` }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 transition-all duration-500 ease-linear"
+                        style={{ 
+                          width: `${scanProgress}%`,
+                          transition: 'width 0.5s linear'
+                        }}
                       />
                     </div>
-                    <p className="text-center text-gray-400 text-xs mt-2">
-                      Analyzing patterns...
-                    </p>
+                    <p className="text-center text-sm text-gray-400 mt-2">Analyzing patterns...</p>
                   </div>
                 )}
               </div>
