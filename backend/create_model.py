@@ -347,6 +347,9 @@ class RuleBasedStalenessDetector:
         # Get all user profile audit records
         all_user_audit_records = ci_data.get('all_user_audit_records', [])
         
+        # Get user lookup data
+        user_by_sys_id = ci_data.get('user_by_sys_id', {})
+        
         # Audit records analysis
         audit_records = ci_data.get('audit_records', [])
         features['total_activity_count'] = len(audit_records)
@@ -355,8 +358,42 @@ class RuleBasedStalenessDetector:
         ci_audit_records = [r for r in audit_records if r.get('audit_type') != 'user_profile_change']
         
         # Owner activity analysis (only CI-related activities)
-        owner_activities = [r for r in ci_audit_records if r.get('user') == assigned_owner]
+        # Handle cases where audit records contain sys_ids instead of usernames
+        owner_activities = []
+        for record in ci_audit_records:
+            audit_user = record.get('user', '')
+            # Direct username match
+            if audit_user == assigned_owner:
+                owner_activities.append(record)
+            # Check if audit_user is a sys_id that matches the owner's sys_id
+            elif audit_user == owner_sys_id:
+                owner_activities.append(record)
+            # Check if audit_user is a sys_id that can be resolved to the assigned_owner username
+            elif audit_user in user_by_sys_id:
+                resolved_user = user_by_sys_id[audit_user]
+                if resolved_user.get('user_name') == assigned_owner:
+                    owner_activities.append(record)
+        
         features['owner_activity_count'] = len(owner_activities)
+        
+        # Debug logging for owner activity mismatch
+        if len(ci_audit_records) > 0:
+            print(f"DEBUG: CI {ci_data.get('ci_id', 'unknown')} - assigned_owner: '{assigned_owner}', owner_sys_id: '{owner_sys_id}'")
+            print(f"DEBUG: Total CI audit records: {len(ci_audit_records)}")
+            print(f"DEBUG: Owner activities found: {len(owner_activities)}")
+            if len(ci_audit_records) > 0:
+                unique_users = set(r.get('user', '') for r in ci_audit_records)
+                print(f"DEBUG: Unique users in audit records: {list(unique_users)[:10]}")
+                # Check if any audit users can be resolved to the assigned owner
+                for user in unique_users:
+                    if user == assigned_owner:
+                        print(f"DEBUG: Direct username match - assigned_owner: '{assigned_owner}', audit_user: '{user}'")
+                    elif user == owner_sys_id:
+                        print(f"DEBUG: Sys_id match - owner_sys_id: '{owner_sys_id}', audit_user: '{user}'")
+                    elif user in user_by_sys_id and user_by_sys_id[user].get('user_name') == assigned_owner:
+                        print(f"DEBUG: Resolved sys_id match - assigned_owner: '{assigned_owner}', audit_user: '{user}' -> '{user_by_sys_id[user].get('user_name')}'")
+            if len(owner_activities) == 0 and len(ci_audit_records) > 0:
+                print(f"DEBUG: WARNING - No owner activities found but CI has {len(ci_audit_records)} audit records!")
         
         if len(ci_audit_records) > 0:
             features['owner_activity_ratio'] = len(owner_activities) / len(ci_audit_records)
