@@ -784,6 +784,69 @@ const ServiceNowScanner = () => {
     }
   };
 
+  // Helper function to check if user is already the owner
+  const isAlreadyOwner = (ci, ownerUsername) => {
+    if (!ci || !ownerUsername) return false;
+    
+    const mappedOwner = mapSystemToAdmin(ownerUsername);
+    const ownerDisplayName = mappedOwner.display_name.toLowerCase();
+    const ownerUsernameNormalized = mappedOwner.username.toLowerCase();
+    
+    // First check the current_owner field (display name)
+    if (ci.current_owner) {
+      const currentOwnerNormalized = ci.current_owner.toLowerCase();
+      if (currentOwnerNormalized === ownerDisplayName || currentOwnerNormalized === ownerUsernameNormalized) {
+        return true;
+      }
+    }
+    
+    // Then check the current_owner_username field
+    if (ci.current_owner_username) {
+      const currentOwnerUsernameNormalized = ci.current_owner_username.toLowerCase();
+      if (currentOwnerUsernameNormalized === ownerUsernameNormalized || currentOwnerUsernameNormalized === ownerDisplayName) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Helper function to calculate current owner score
+  const calculateCurrentOwnerScore = (ci) => {
+    if (!ci) return 0;
+    
+    let score = 0;
+    
+    // Activity count (0-40 points)
+    const activityCount = ci.owner_activity_count || 0;
+    score += Math.min(activityCount * 5, 40);
+    
+    // Recency bonus (0-30 points)
+    const daysSinceActivity = ci.days_since_owner_activity || 999;
+    if (daysSinceActivity < 7) {
+      score += 30;
+    } else if (daysSinceActivity < 30) {
+      score += 20;
+    } else if (daysSinceActivity < 90) {
+      score += 10;
+    } else if (daysSinceActivity < 180) {
+      score += 5;
+    }
+    // No points for > 180 days
+    
+    // Account status (0-20 points)
+    if (ci.owner_active) {
+      score += 20;
+    }
+    
+    // Ownership changes penalty (reduce up to 10 points)
+    const ownershipChanges = ci.owner_profile_changes_count || 0;
+    score -= Math.min(ownershipChanges * 5, 10);
+    
+    // Ensure score is between 0 and 100
+    return Math.max(0, Math.min(score, 100));
+  };
+
   const goToPage = (page) => {
     setCurrentPage(page);
     setExpandedCI(null); // Close any expanded CI when changing pages
@@ -1673,31 +1736,33 @@ const ServiceNowScanner = () => {
                                                         </div>
                                                       </div>
                                                     ) : (
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          const mappedOwner = mapSystemToAdmin(owner.username, owner.display_name);
-                                                          assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
-                                                        }}
-                                                        disabled={assigningCIs.has(ci.ci_id)}
-                                                        className={`w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
-                                                          assigningCIs.has(ci.ci_id)
-                                                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                                            : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
-                                                        }`}
-                                                      >
-                                                        {assigningCIs.has(ci.ci_id) ? (
-                                                          <>
-                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                            <span>Assigning...</span>
-                                                          </>
-                                                        ) : (
-                                                          <>
-                                                            <UserPlus className="w-4 h-4" />
-                                                            <span>Assign to {mapSystemToAdmin(owner.username, owner.display_name).display_name}</span>
-                                                          </>
-                                                        )}
-                                                      </button>
+                                                      !isAlreadyOwner(ci, owner.display_name || owner.username) && (
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const mappedOwner = mapSystemToAdmin(owner.username, owner.display_name);
+                                                            assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
+                                                          }}
+                                                          disabled={assigningCIs.has(ci.ci_id)}
+                                                          className={`w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
+                                                            assigningCIs.has(ci.ci_id)
+                                                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                              : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
+                                                          }`}
+                                                        >
+                                                          {assigningCIs.has(ci.ci_id) ? (
+                                                            <>
+                                                              <Loader2 className="w-4 h-4 animate-spin" />
+                                                              <span>Assigning...</span>
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <UserPlus className="w-4 h-4" />
+                                                              <span>Assign to {mapSystemToAdmin(owner.username, owner.display_name).display_name}</span>
+                                                            </>
+                                                          )}
+                                                        </button>
+                                                      )
                                                     )}
                                                   </div>
                                                 </div>
@@ -1974,33 +2039,35 @@ const ServiceNowScanner = () => {
                                                     </div>
                                                   </div>
                                                 ) : (
-                                                  <button
-                                                    onClick={() => {
-                                                      const mappedOwner = mapSystemToAdmin(
-                                                        ci.recommended_owners[0].username, 
-                                                        ci.recommended_owners[0].display_name
-                                                      );
-                                                      assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
-                                                    }}
-                                                    disabled={assigningCIs.has(ci.ci_id)}
-                                                    className={`w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg font-medium transition-all ${
-                                                      assigningCIs.has(ci.ci_id)
-                                                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                                        : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
-                                                    }`}
-                                                  >
-                                                    {assigningCIs.has(ci.ci_id) ? (
-                                                      <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        <span>Assigning...</span>
-                                                      </>
-                                                    ) : (
-                                                      <>
-                                                        <UserPlus className="w-4 h-4" />
-                                                        <span>Assign to {mapSystemToAdmin(ci.recommended_owners[0].username, ci.recommended_owners[0].display_name).display_name}</span>
-                                                      </>
-                                                    )}
-                                                  </button>
+                                                  !isAlreadyOwner(ci, ci.recommended_owners[0].display_name || ci.recommended_owners[0].username) && (
+                                                    <button
+                                                      onClick={() => {
+                                                        const mappedOwner = mapSystemToAdmin(
+                                                          ci.recommended_owners[0].username, 
+                                                          ci.recommended_owners[0].display_name
+                                                        );
+                                                        assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
+                                                      }}
+                                                      disabled={assigningCIs.has(ci.ci_id)}
+                                                      className={`w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-lg font-medium transition-all ${
+                                                        assigningCIs.has(ci.ci_id)
+                                                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                          : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
+                                                      }`}
+                                                    >
+                                                      {assigningCIs.has(ci.ci_id) ? (
+                                                        <>
+                                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                                          <span>Assigning...</span>
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <UserPlus className="w-4 h-4" />
+                                                          <span>Assign to {mapSystemToAdmin(ci.recommended_owners[0].username, ci.recommended_owners[0].display_name).display_name}</span>
+                                                        </>
+                                                      )}
+                                                    </button>
+                                                  )
                                                 )}
                                               </div>
                                             </div>
@@ -2065,30 +2132,32 @@ const ServiceNowScanner = () => {
                                                     
                                                     {/* Assign Button for Alternate */}
                                                     <div className="mt-3 pt-3 border-t border-white/10">
-                                                      <button
-                                                        onClick={() => {
-                                                          const mappedOwner = mapSystemToAdmin(owner.username, owner.display_name);
-                                                          assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
-                                                        }}
-                                                        disabled={assigningCIs.has(ci.ci_id)}
-                                                        className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg font-medium transition-all text-sm ${
-                                                          assigningCIs.has(ci.ci_id)
-                                                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                                            : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
-                                                        }`}
-                                                      >
-                                                        {assigningCIs.has(ci.ci_id) ? (
-                                                          <>
-                                                            <Loader2 className="w-3 h-3 animate-spin" />
-                                                            <span>Assigning...</span>
-                                                          </>
-                                                        ) : (
-                                                          <>
-                                                            <UserPlus className="w-3 h-3" />
-                                                            <span>Assign</span>
-                                                          </>
-                                                        )}
-                                                      </button>
+                                                      {!isAlreadyOwner(ci, owner.display_name || owner.username) && (
+                                                        <button
+                                                          onClick={() => {
+                                                            const mappedOwner = mapSystemToAdmin(owner.username, owner.display_name);
+                                                            assignCIToOwner(ci.ci_id, mappedOwner.username, mappedOwner.display_name);
+                                                          }}
+                                                          disabled={assigningCIs.has(ci.ci_id)}
+                                                          className={`w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg font-medium transition-all text-sm ${
+                                                            assigningCIs.has(ci.ci_id)
+                                                              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                                              : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white hover:scale-105'
+                                                          }`}
+                                                        >
+                                                          {assigningCIs.has(ci.ci_id) ? (
+                                                            <>
+                                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                                              <span>Assigning...</span>
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <UserPlus className="w-3 h-3" />
+                                                              <span>Assign</span>
+                                                            </>
+                                                          )}
+                                                        </button>
+                                                      )}
                                                     </div>
                                                   </div>
                                                 ))}
@@ -2102,7 +2171,7 @@ const ServiceNowScanner = () => {
                                                         <div className="text-xs text-gray-400">{ci.current_owner_username || ci.current_owner}</div>
                                                       </div>
                                                       <div className="text-right">
-                                                        <div className="text-orange-400 font-bold">0/100</div>
+                                                        <div className="text-orange-400 font-bold">{calculateCurrentOwnerScore(ci)}/100</div>
                                                         <div className="text-xs text-gray-400">Current Owner</div>
                                                       </div>
                                                     </div>
