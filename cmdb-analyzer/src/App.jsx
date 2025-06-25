@@ -604,36 +604,47 @@ const ServiceNowScanner = () => {
       
       highRiskCIs.forEach(ci => {
         if (ci.recommended_owners && ci.recommended_owners.length > 0) {
-          const primaryOwner = ci.recommended_owners[0];
-          const recommendedUsername = primaryOwner.username;
-          const currentOwnerUsername = ci.current_owner_username || ci.current_owner;
-          
-          // Skip if current owner and recommended owner are the same
-          if (recommendedUsername && currentOwnerUsername && 
-              recommendedUsername.toLowerCase() === currentOwnerUsername.toLowerCase()) {
-            console.log(`Skipping CI ${ci.ci_name} - current owner (${currentOwnerUsername}) same as recommended owner (${recommendedUsername})`);
-            return;
-          }
-          
-          if (!ownerStats[recommendedUsername]) {
-            ownerStats[recommendedUsername] = {
-              username: recommendedUsername,
-              display_name: primaryOwner.display_name,
-              total_cis: 0,
-              critical_count: 0,
-              high_count: 0,
-              total_score: 0
-            };
-          }
-          
-          ownerStats[recommendedUsername].total_cis++;
-          ownerStats[recommendedUsername].total_score += primaryOwner.score || 0;
-          
-          if (ci.risk_level === 'Critical') {
-            ownerStats[recommendedUsername].critical_count++;
-          } else if (ci.risk_level === 'High') {
-            ownerStats[recommendedUsername].high_count++;
-          }
+          // Process ALL recommended owners, not just the first one
+          ci.recommended_owners.forEach((recommendedOwner, index) => {
+            const recommendedUsername = recommendedOwner.username;
+            const currentOwnerUsername = ci.current_owner_username || ci.current_owner;
+            
+            // Skip if current owner and recommended owner are the same
+            if (recommendedUsername && currentOwnerUsername && 
+                recommendedUsername.toLowerCase() === currentOwnerUsername.toLowerCase()) {
+              console.log(`Skipping CI ${ci.ci_name} - current owner (${currentOwnerUsername}) same as recommended owner (${recommendedUsername})`);
+              return;
+            }
+            
+            if (!ownerStats[recommendedUsername]) {
+              ownerStats[recommendedUsername] = {
+                username: recommendedUsername,
+                display_name: recommendedOwner.display_name,
+                total_cis: 0,
+                critical_count: 0,
+                high_count: 0,
+                total_score: 0,
+                as_primary: 0,
+                as_alternate: 0
+              };
+            }
+            
+            ownerStats[recommendedUsername].total_cis++;
+            ownerStats[recommendedUsername].total_score += recommendedOwner.score || 0;
+            
+            // Track if this is a primary (index 0) or alternate recommendation
+            if (index === 0) {
+              ownerStats[recommendedUsername].as_primary++;
+            } else {
+              ownerStats[recommendedUsername].as_alternate++;
+            }
+            
+            if (ci.risk_level === 'Critical') {
+              ownerStats[recommendedUsername].critical_count++;
+            } else if (ci.risk_level === 'High') {
+              ownerStats[recommendedUsername].high_count++;
+            }
+          });
         }
       });
       
@@ -719,22 +730,28 @@ const ServiceNowScanner = () => {
               !(ci.risk_level === 'Critical' || ci.risk_level === 'High') ||
               !ci.recommended_owners || 
               !Array.isArray(ci.recommended_owners) ||
-              ci.recommended_owners.length === 0 || 
-              !ci.recommended_owners[0] ||
-              !ci.recommended_owners[0].username) {
+              ci.recommended_owners.length === 0) {
             return false;
           }
           
-          const recommendedUsername = ci.recommended_owners[0].username;
           const currentOwnerUsername = ci.current_owner_username || ci.current_owner;
           
-          // Skip if current owner and recommended owner are the same
-          if (recommendedUsername && currentOwnerUsername && 
-              recommendedUsername.toLowerCase() === currentOwnerUsername.toLowerCase()) {
-            return false;
-          }
-          
-          return mapSystemToAdmin(recommendedUsername, ci.recommended_owners[0].display_name).username === ownerUsername;
+          // Check if this user appears in ANY of the recommended owners list
+          return ci.recommended_owners.some((recommendedOwner, index) => {
+            if (!recommendedOwner || !recommendedOwner.username) {
+              return false;
+            }
+            
+            const recommendedUsername = recommendedOwner.username;
+            
+            // Skip if current owner and recommended owner are the same
+            if (recommendedUsername && currentOwnerUsername && 
+                recommendedUsername.toLowerCase() === currentOwnerUsername.toLowerCase()) {
+              return false;
+            }
+            
+            return mapSystemToAdmin(recommendedUsername, recommendedOwner.display_name).username === ownerUsername;
+          });
         } catch (error) {
           console.error('Error filtering CI for owner:', ci, error);
           return false;
@@ -1553,7 +1570,10 @@ const ServiceNowScanner = () => {
                           <div className="p-6 border-b border-white/10 bg-white/2">
                             <div className="mb-4">
                               <h4 className="text-lg font-semibold text-white mb-2">Select Recommended Owner</h4>
-                              <p className="text-gray-400 text-sm">Choose an owner to view their high risk & critical CI recommendations</p>
+                              <p className="text-gray-400 text-sm">
+                                Choose an owner to view their high risk & critical CI recommendations. 
+                                Owners shown here appear in <strong>any</strong> recommendation list (primary or alternate).
+                              </p>
                             </div>
                             
                             <div className="space-y-3">
@@ -1590,7 +1610,7 @@ const ServiceNowScanner = () => {
                                         </div>
                                       </div>
                                     </div>
-                                    <div className="mt-2 grid grid-cols-2 gap-4 text-xs">
+                                    <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
                                       <div className="text-center">
                                         <div className="text-red-400 font-semibold">{owner.critical_count}</div>
                                         <div className="text-gray-400">Critical</div>
@@ -1598,6 +1618,14 @@ const ServiceNowScanner = () => {
                                       <div className="text-center">
                                         <div className="text-orange-400 font-semibold">{owner.high_count}</div>
                                         <div className="text-gray-400">High Risk</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-green-400 font-semibold">{owner.as_primary || 0}</div>
+                                        <div className="text-gray-400">Primary</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="text-blue-400 font-semibold">{owner.as_alternate || 0}</div>
+                                        <div className="text-gray-400">Alternate</div>
                                       </div>
                                     </div>
                                   </div>
