@@ -17,7 +17,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=['*'])  # Update this with your GitHub Pages URL in production
+CORS(app, 
+     origins=['https://royo1019.github.io/royoplay/', 
+              'http://localhost:5173', 
+              'http://localhost:5174', 
+              'https://lightcoral-loris-143961.hostingersite.com',
+              'https://lightcoral-loris-143961.hostingersite.com/'],
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS'],
+     expose_headers=['Content-Type'],
+     max_age=3600)
 
 # Load the ML model
 MODEL_PATH = 'staleness_detector_model.pkl'
@@ -1222,13 +1232,5 @@ def undo_assignment():
         session.close()
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') == 'development'
-    
-    print("Starting CMDB Analyzer Backend with ML Model...")
-    print(f"Backend will be available at: http://0.0.0.0:{port}")
-    print(f"Health check: http://0.0.0.0:{port}/health")
-    print("Test connection: POST /test-connection")
-    print("Scan for stale ownership: POST /scan-stale-ownership")
-    app.run(debug=debug, host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)

@@ -1,11 +1,10 @@
 // Configuration for different environments
 const config = {
   development: {
-    API_URL: 'http://localhost:5000'
+    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app'
   },
   production: {
-    // TODO: Replace this URL with your actual deployed backend URL
-    API_URL: 'https://your-cmdb-analyzer-backend.railway.app'
+    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app'
   }
 };
 
