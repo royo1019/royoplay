@@ -17,8 +17,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=['*'])  # Update this with your GitHub Pages URL in production
-
+CORS(app, 
+     origins=['https://royo1019.github.io/royoplay/', 
+              'http://localhost:5173', 
+              'http://localhost:5174', 
+              'https://lightcoral-loris-143961.hostingersite.com',
+              'https://lightcoral-loris-143961.hostingersite.com/'],
+     supports_credentials=True,
+     allow_headers=['Content-Type', 'Authorization'],
+     methods=['GET', 'POST', 'OPTIONS'],
+     expose_headers=['Content-Type'],
+     max_age=3600)
 # Load the ML model
 MODEL_PATH = 'staleness_detector_model.pkl'
 model = None

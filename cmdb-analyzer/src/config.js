@@ -1,11 +1,11 @@
 // Configuration for different environments
 const config = {
   development: {
-    API_URL: 'http://localhost:5000'
+    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app'
   },
   production: {
-    // Replace this with your deployed backend URL
-    API_URL: 'https://your-backend-service.herokuapp.com' // or Railway, Render, etc.
+    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app',
+    BASE_URL: 'https://lightcoral-loris-143961.hostingersite.com/'
   }
 };
 
