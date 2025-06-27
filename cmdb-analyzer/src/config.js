@@ -4,7 +4,8 @@ const config = {
     API_URL: 'https://cmdb-backend-deployment-production.up.railway.app'
   },
   production: {
-    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app'
+    API_URL: 'https://cmdb-backend-deployment-production.up.railway.app',
+    BASE_URL: 'https://lightcoral-loris-143961.hostingersite.com/'
   }
 };
 
