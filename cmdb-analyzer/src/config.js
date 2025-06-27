@@ -4,8 +4,8 @@ const config = {
     API_URL: 'http://localhost:5000'
   },
   production: {
-    // Replace this with your deployed backend URL
-    API_URL: 'https://your-backend-service.herokuapp.com' // or Railway, Render, etc.
+    // TODO: Replace this URL with your actual deployed backend URL
+    API_URL: 'https://your-cmdb-analyzer-backend.railway.app'
   }
 };
 
